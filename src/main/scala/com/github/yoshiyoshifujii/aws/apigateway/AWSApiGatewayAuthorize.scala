@@ -40,19 +40,21 @@ trait AWSApiGatewayAuthorizeWrapper extends AWSApiGatewayRestApiWrapper {
                        authorizerResultTtlInSeconds: Option[Int] = Some(300)) = Try {
     lazy val generatePatch =
       (p: String) =>
-        (v: String) => Option {
-          new PatchOperation()
-            .withOp(Op.Replace)
-            .withPath(p)
-            .withValue(v)
-        }
+        (v: String) =>
+          Option {
+            new PatchOperation()
+              .withOp(Op.Replace)
+              .withPath(p)
+              .withValue(v)
+      }
 
     lazy val patchOperations = Seq(
       generatePatch("/name")(name),
       generatePatch("/authorizerUri")(authorizerUri.value),
       generatePatch("/identitySource")(IdentitySource(identitySourceHeaderName).mkValue),
       identityValidationExpression.flatMap(generatePatch("/identityValidationExpression")(_)),
-      authorizerResultTtlInSeconds.flatMap(i => generatePatch("/authorizerResultTtlInSeconds")(i.toString))
+      authorizerResultTtlInSeconds.flatMap(i =>
+        generatePatch("/authorizerResultTtlInSeconds")(i.toString))
     ).flatten
 
     val request = new UpdateAuthorizerRequest()
@@ -78,25 +80,23 @@ trait AWSApiGatewayAuthorizeWrapper extends AWSApiGatewayRestApiWrapper {
     )
     for {
       aOp <- getAuthorizer(name)
-      id <- Try {
-        aOp map { a =>
-          updateAuthorizer(
-            authorizerId = a.getId,
-            name = name,
-            authorizerUri = authorizerUri,
-            identitySourceHeaderName = identitySourceHeaderName,
-            identityValidationExpression = identityValidationExpression,
-            authorizerResultTtlInSeconds = authorizerResultTtlInSeconds
-          ).get.getId
-        } getOrElse {
-          createAuthorizer(
-            name = name,
-            authorizerUri = authorizerUri,
-            identitySourceHeaderName = identitySourceHeaderName,
-            identityValidationExpression = identityValidationExpression,
-            authorizerResultTtlInSeconds = authorizerResultTtlInSeconds
-          ).get.getId
-        }
+      id <- aOp map { a =>
+        updateAuthorizer(
+          authorizerId = a.getId,
+          name = name,
+          authorizerUri = authorizerUri,
+          identitySourceHeaderName = identitySourceHeaderName,
+          identityValidationExpression = identityValidationExpression,
+          authorizerResultTtlInSeconds = authorizerResultTtlInSeconds
+        ).map(_.getId)
+      } getOrElse {
+        createAuthorizer(
+          name = name,
+          authorizerUri = authorizerUri,
+          identitySourceHeaderName = identitySourceHeaderName,
+          identityValidationExpression = identityValidationExpression,
+          authorizerResultTtlInSeconds = authorizerResultTtlInSeconds
+        ).map(_.getId)
       }
     } yield id
   }
@@ -115,12 +115,11 @@ trait AWSApiGatewayAuthorizeWrapper extends AWSApiGatewayRestApiWrapper {
       d <- Try {
         aOp map { a =>
           deleteAuthorizer(a.getId)
-        } getOrElse(throw new NotFoundException(s"authorizer not found: $name"))
+        } getOrElse (throw new NotFoundException(s"authorizer not found: $name"))
       }
     } yield d
   }
 
 }
-case class AWSApiGatewayAuthorize(regionName: String,
-                                  restApiId: RestApiId) extends AWSApiGatewayAuthorizeWrapper
-
+case class AWSApiGatewayAuthorize(regionName: String, restApiId: RestApiId)
+    extends AWSApiGatewayAuthorizeWrapper
